@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            success: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth transitions */
+    .card-hover { transition: box-shadow 0.2s, transform 0.2s; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+  </style>
+</head>
+<body class="h-full bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+
+  <div id="app" class="min-h-full flex flex-col items-center px-4 py-6">
+    <!-- Header -->
+    <header class="w-full max-w-[640px] flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-primary">Time Tracker</h1>
+      <div class="flex items-center gap-2">
+        <span id="user-display" class="text-sm text-gray-500 dark:text-gray-400 hidden"></span>
+        <button id="logout-btn" class="hidden text-sm px-3 py-1.5 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 min-h-[44px]" onclick="logout()">Logout</button>
+        <button id="theme-toggle" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center" onclick="toggleTheme()" aria-label="Toggle theme">
+          <span id="theme-icon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="w-full max-w-[640px]">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h2 id="auth-title" class="text-xl font-semibold mb-4">Log In</h2>
+        <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1" for="auth-username">Username</label>
+            <input id="auth-username" type="text" required autocomplete="username"
+              class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1" for="auth-password">Password</label>
+            <input id="auth-password" type="password" required autocomplete="current-password"
+              class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]" />
+          </div>
+          <div id="auth-error" class="text-danger text-sm hidden"></div>
+          <button type="submit" class="w-full py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 min-h-[44px]">
+            <span id="auth-btn-text">Log In</span>
+          </button>
+        </form>
+        <p class="mt-4 text-sm text-center text-gray-500 dark:text-gray-400">
+          <span id="auth-switch-text">Don't have an account?</span>
+          <button id="auth-switch-btn" class="text-primary hover:underline font-medium ml-1" onclick="toggleAuthMode()">Register</button>
+        </p>
+      </div>
+    </div>
+
+    <!-- Client List Screen -->
+    <div id="client-screen" class="w-full max-w-[640px] hidden">
+      <!-- Add Client Form -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-4">
+        <h2 class="text-lg font-semibold mb-3">Add Client</h2>
+        <form id="client-form" onsubmit="addClient(event)" class="flex flex-col sm:flex-row gap-2">
+          <input id="client-name" type="text" placeholder="Client name"
+            class="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
+            oninput="updateAddClientBtn()" />
+          <input id="client-rate" type="number" step="0.01" min="0" placeholder="Hourly rate"
+            class="w-full sm:w-32 px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
+            oninput="updateAddClientBtn()" />
+          <button id="add-client-btn" type="submit" disabled
+            class="px-4 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 min-h-[44px]">
+            Add
+          </button>
+        </form>
+      </div>
+
+      <!-- Client List -->
+      <div id="client-list"></div>
+      <div id="client-empty" class="text-center py-12 text-gray-500 dark:text-gray-400 hidden">
+        No clients yet. Add your first client above.
+      </div>
+    </div>
+
+    <!-- Time Entries Screen -->
+    <div id="entries-screen" class="w-full max-w-[640px] hidden">
+      <!-- Header -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-4">
+        <div class="flex items-center gap-3 mb-1">
+          <button onclick="showClients()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Back to clients">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <div>
+            <h2 id="entry-client-name" class="text-xl font-semibold"></h2>
+            <p id="entry-client-rate" class="text-sm text-gray-500 dark:text-gray-400"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Entry Form -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-4">
+        <h3 class="text-lg font-semibold mb-3">Log Time</h3>
+        <form id="entry-form" onsubmit="addEntry(event)" class="space-y-3">
+          <div class="flex flex-col sm:flex-row gap-2">
+            <div class="flex-1">
+              <label class="block text-sm font-medium mb-1" for="entry-date">Date</label>
+              <input id="entry-date" type="date"
+                class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]" />
+            </div>
+            <div class="sm:w-32">
+              <label class="block text-sm font-medium mb-1" for="entry-hours">Hours</label>
+              <input id="entry-hours" type="number" step="0.25" min="0" placeholder="0"
+                class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]"
+                oninput="updateAddEntryBtn()" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1" for="entry-note">Note</label>
+            <input id="entry-note" type="text" placeholder="What did you work on?"
+              class="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px]" />
+          </div>
+          <div id="entry-error" class="text-danger text-sm hidden"></div>
+          <button id="add-entry-btn" type="submit" disabled
+            class="w-full py-2.5 rounded-lg bg-success text-white font-medium hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-success focus:ring-offset-2 min-h-[44px]">
+            Log Entry
+          </button>
+        </form>
+      </div>
+
+      <!-- Entries List -->
+      <div id="entry-list"></div>
+      <div id="entry-empty" class="text-center py-12 text-gray-500 dark:text-gray-400 hidden">
+        No time logged for this client yet.
+      </div>
+
+      <!-- Footer Totals -->
+      <div id="entry-footer" class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mt-4 hidden">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total Hours</p>
+            <p id="total-hours" class="text-xl font-bold"></p>
+          </div>
+          <div class="text-right">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Total Earnings</p>
+            <p id="total-earnings" class="text-xl font-bold text-success"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm">
+      <h3 class="text-lg font-semibold mb-2">Delete Client</h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-6">Are you sure you want to delete <span id="delete-client-name" class="font-medium text-gray-900 dark:text-gray-100"></span>? All time entries will be permanently removed.</p>
+      <div class="flex gap-3 justify-end">
+        <button onclick="closeDeleteModal()" class="px-4 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 font-medium min-h-[44px]">Cancel</button>
+        <button id="confirm-delete-btn" onclick="confirmDelete()" class="px-4 py-2.5 rounded-lg bg-danger text-white font-medium hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-2 min-h-[44px]">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────
+    let token = localStorage.getItem('token');
+    let currentUser = localStorage.getItem('currentUser');
+    let isRegister = false;
+    let clients = [];
+    let currentClient = null;
+    let entries = [];
+    let deleteTargetId = null;
+
+    // ── API helpers ───────────────────────────────────────────────
+    async function api(path, opts = {}) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(path, { ...opts, headers });
+      if (res.status === 401) {
+        logout();
+        throw new Error('Session expired');
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+        throw new Error(err.detail || 'Request failed');
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    // ── Theme ─────────────────────────────────────────────────────
+    function initTheme() {
+      const dark = localStorage.getItem('theme') === 'dark' ||
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+      document.getElementById('theme-icon').textContent = dark ? '☀️' : '🌙';
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+    }
+
+    // ── Auth ──────────────────────────────────────────────────────
+    function toggleAuthMode() {
+      isRegister = !isRegister;
+      document.getElementById('auth-title').textContent = isRegister ? 'Register' : 'Log In';
+      document.getElementById('auth-btn-text').textContent = isRegister ? 'Register' : 'Log In';
+      document.getElementById('auth-switch-text').textContent = isRegister ? 'Already have an account?' : "Don't have an account?";
+      document.getElementById('auth-switch-btn').textContent = isRegister ? 'Log In' : 'Register';
+      document.getElementById('auth-error').classList.add('hidden');
+      document.getElementById('auth-password').autocomplete = isRegister ? 'new-password' : 'current-password';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const username = document.getElementById('auth-username').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const errorEl = document.getElementById('auth-error');
+      errorEl.classList.add('hidden');
+
+      try {
+        const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
+        const data = await api(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ username, password }),
+        });
+        token = data.access_token;
+        currentUser = username;
+        localStorage.setItem('token', token);
+        localStorage.setItem('currentUser', currentUser);
+        showClients();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      token = null;
+      currentUser = null;
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentUser');
+      showAuth();
+    }
+
+    // ── Navigation ────────────────────────────────────────────────
+    function showAuth() {
+      document.getElementById('auth-screen').classList.remove('hidden');
+      document.getElementById('client-screen').classList.add('hidden');
+      document.getElementById('entries-screen').classList.add('hidden');
+      document.getElementById('logout-btn').classList.add('hidden');
+      document.getElementById('user-display').classList.add('hidden');
+      document.getElementById('auth-form').reset();
+      document.getElementById('auth-error').classList.add('hidden');
+    }
+
+    async function showClients() {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('client-screen').classList.remove('hidden');
+      document.getElementById('entries-screen').classList.add('hidden');
+      document.getElementById('logout-btn').classList.remove('hidden');
+      document.getElementById('user-display').classList.remove('hidden');
+      document.getElementById('user-display').textContent = currentUser;
+      currentClient = null;
+
+      try {
+        clients = await api('/api/clients');
+        renderClients();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function showEntries(clientId) {
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return;
+      currentClient = client;
+
+      document.getElementById('client-screen').classList.add('hidden');
+      document.getElementById('entries-screen').classList.remove('hidden');
+      document.getElementById('entry-client-name').textContent = client.name;
+      document.getElementById('entry-client-rate').textContent = `$${client.rate.toFixed(2)}/hr`;
+
+      // Reset form
+      document.getElementById('entry-form').reset();
+      document.getElementById('entry-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('entry-error').classList.add('hidden');
+      updateAddEntryBtn();
+
+      try {
+        entries = await api(`/api/clients/${clientId}/entries`);
+        renderEntries();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // ── Render clients ────────────────────────────────────────────
+    function renderClients() {
+      const list = document.getElementById('client-list');
+      const empty = document.getElementById('client-empty');
+
+      if (clients.length === 0) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      list.innerHTML = clients.map(c => `
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-3 card-hover cursor-pointer group"
+             onclick="showEntries('${c.id}')">
+          <div class="flex justify-between items-start">
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-lg truncate">${esc(c.name)}</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400">$${c.rate.toFixed(2)}/hr</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <p class="text-lg font-bold">${c.total_hours.toFixed(1)}h</p>
+                <p class="text-sm text-success font-medium">$${(c.total_hours * c.rate).toFixed(2)}</p>
+              </div>
+              <button onclick="event.stopPropagation(); openDeleteModal('${c.id}', '${esc(c.name)}')"
+                class="p-2 rounded-lg text-gray-400 hover:text-danger hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Delete ${esc(c.name)}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ── Render entries ────────────────────────────────────────────
+    function renderEntries() {
+      const list = document.getElementById('entry-list');
+      const empty = document.getElementById('entry-empty');
+      const footer = document.getElementById('entry-footer');
+
+      if (entries.length === 0) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        footer.classList.add('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      footer.classList.remove('hidden');
+
+      const rate = currentClient.rate;
+      let totalHours = 0;
+
+      list.innerHTML = entries.map(e => {
+        totalHours += e.hours;
+        const lineTotal = (e.hours * rate).toFixed(2);
+        const dateStr = new Date(e.date + 'T00:00:00').toLocaleDateString('en-US', {
+          weekday: 'short', month: 'short', day: 'numeric'
+        });
+        return `
+          <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-3 group">
+            <div class="flex justify-between items-start">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-sm font-medium text-gray-500 dark:text-gray-400">${dateStr}</span>
+                  <span class="text-sm font-bold">${e.hours}h</span>
+                </div>
+                <p class="text-sm text-gray-700 dark:text-gray-300 truncate">${esc(e.note) || '<span class="italic text-gray-400">No note</span>'}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-success">$${lineTotal}</span>
+                <button onclick="deleteEntry('${e.id}')"
+                  class="p-2 rounded-lg text-gray-400 hover:text-danger hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Delete entry">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('total-hours').textContent = `${totalHours.toFixed(1)}h`;
+      document.getElementById('total-earnings').textContent = `$${(totalHours * rate).toFixed(2)}`;
+    }
+
+    // ── Client actions ────────────────────────────────────────────
+    function updateAddClientBtn() {
+      const name = document.getElementById('client-name').value.trim();
+      const rate = document.getElementById('client-rate').value;
+      document.getElementById('add-client-btn').disabled = !name || !rate;
+    }
+
+    async function addClient(e) {
+      e.preventDefault();
+      const name = document.getElementById('client-name').value.trim();
+      const rate = parseFloat(document.getElementById('client-rate').value);
+      if (!name || !rate) return;
+
+      try {
+        const client = await api('/api/clients', {
+          method: 'POST',
+          body: JSON.stringify({ name, rate }),
+        });
+        clients.push(client);
+        clients.sort((a, b) => a.name.localeCompare(b.name));
+        renderClients();
+        document.getElementById('client-form').reset();
+        updateAddClientBtn();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // ── Delete modal ──────────────────────────────────────────────
+    function openDeleteModal(id, name) {
+      deleteTargetId = id;
+      document.getElementById('delete-client-name').textContent = name;
+      document.getElementById('delete-modal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+      deleteTargetId = null;
+      document.getElementById('delete-modal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+      if (!deleteTargetId) return;
+      try {
+        await api(`/api/clients/${deleteTargetId}`, { method: 'DELETE' });
+        clients = clients.filter(c => c.id !== deleteTargetId);
+        renderClients();
+      } catch (err) {
+        console.error(err);
+      }
+      closeDeleteModal();
+    }
+
+    // ── Entry actions ─────────────────────────────────────────────
+    function updateAddEntryBtn() {
+      const hours = parseFloat(document.getElementById('entry-hours').value);
+      document.getElementById('add-entry-btn').disabled = !(hours > 0);
+    }
+
+    async function addEntry(e) {
+      e.preventDefault();
+      const errorEl = document.getElementById('entry-error');
+      const hours = parseFloat(document.getElementById('entry-hours').value);
+
+      if (!hours || hours <= 0) {
+        errorEl.textContent = 'Hours must be greater than 0';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      errorEl.classList.add('hidden');
+
+      const date = document.getElementById('entry-date').value;
+      const note = document.getElementById('entry-note').value.trim();
+
+      try {
+        const entry = await api(`/api/clients/${currentClient.id}/entries`, {
+          method: 'POST',
+          body: JSON.stringify({ date, hours, note }),
+        });
+        entries.unshift(entry);
+        renderEntries();
+        // Update client total in local state
+        const ci = clients.findIndex(c => c.id === currentClient.id);
+        if (ci !== -1) clients[ci].total_hours += hours;
+        // Clear form
+        document.getElementById('entry-hours').value = '';
+        document.getElementById('entry-note').value = '';
+        updateAddEntryBtn();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    async function deleteEntry(entryId) {
+      try {
+        await api(`/api/clients/${currentClient.id}/entries/${entryId}`, { method: 'DELETE' });
+        const removed = entries.find(e => e.id === entryId);
+        entries = entries.filter(e => e.id !== entryId);
+        renderEntries();
+        // Update client total
+        if (removed) {
+          const ci = clients.findIndex(c => c.id === currentClient.id);
+          if (ci !== -1) clients[ci].total_hours -= removed.hours;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    // ── Init ──────────────────────────────────────────────────────
+    initTheme();
+    if (token) {
+      showClients();
+    } else {
+      showAuth();
+    }
+  </script>
+</body>
+</html>
